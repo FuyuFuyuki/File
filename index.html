@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnonFile Drive</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+</head>
+<body>
+    <div class="sidebar">
+        <h3>AnonFile Drive</h3>
+        <button class="upload-btn" onclick="toggleUploadSection()"><i class="material-icons">add</i> New</button>
+    </div>
+    <div class="main-content">
+        <div class="header">
+            <input type="text" placeholder="Search in Drive" class="search-bar">
+            <button class="grid-view" onclick="toggleViewMode()"><i class="material-icons">view_module</i></button>
+        </div>
+        <div id="uploadSection" class="upload-section hidden">
+            <input type="file" id="fileInput">
+            <button class="action-btn" onclick="uploadFile()">Upload</button>
+            <button class="action-btn" onclick="createFolder()">Create Folder</button>
+        </div>
+        <div class="container">
+            <div id="fileList" class="grid"></div>
+        </div>
+    </div>
+
+    <script>
+        let storage = { root: [] };
+        let currentFolder = "root";
+        let isGridView = true;
+
+        function createFolder() {
+            const folderName = prompt("Enter folder name:");
+            if (!folderName) return;
+            if (!storage[currentFolder]) storage[currentFolder] = [];
+            storage[currentFolder].push({ name: folderName, type: "folder", files: [] });
+            renderFileList();
+        }
+
+        async function uploadFile() {
+            const file = document.getElementById("fileInput").files[0];
+            if (!file) {
+                alert("Select a file first!");
+                return;
+            }
+            document.getElementById("uploadSection").classList.add("hidden");
+            const formData = new FormData();
+            formData.append("file", file);
+            try {
+                const response = await fetch("https://api.anonfiles.com/upload", { method: "POST", body: formData });
+                const result = await response.json();
+                if (result.status) {
+                    const downloadURL = result.data.file.url.full;
+                    if (!storage[currentFolder]) storage[currentFolder] = [];
+                    storage[currentFolder].push({ name: file.name, url: downloadURL, type: "file" });
+                    renderFileList();
+                }
+            } catch (error) {
+                alert("Upload failed!");
+            }
+        }
+
+        function renderFileList() {
+            const fileListDiv = document.getElementById("fileList");
+            fileListDiv.innerHTML = "";
+            fileListDiv.className = isGridView ? "grid" : "list";
+            if (currentFolder !== "root") {
+                const backButton = document.createElement("div");
+                backButton.className = "item back-btn";
+                backButton.innerHTML = "⬅️ Back";
+                backButton.onclick = () => { currentFolder = "root"; renderFileList(); };
+                fileListDiv.appendChild(backButton);
+            }
+            (storage[currentFolder] || []).forEach(item => {
+                const itemDiv = document.createElement("div");
+                itemDiv.className = "item";
+                itemDiv.innerHTML = `<div class='file-icon'><i class="material-icons">${item.type === "folder" ? "folder" : "insert_drive_file"}</i></div> ${item.name}`;
+                if (item.type === "folder") {
+                    itemDiv.innerHTML += ` <div class='actions'><button class='open-btn' onclick='openFolder("${item.name}")'>📂 Open</button></div>`;
+                } else {
+                    itemDiv.innerHTML += ` <div class='actions'>
+                        <a href='${item.url}' target='_blank' class='view-btn'><i class="material-icons">visibility</i> View</a>
+                        <a href='${item.url}' download class='download-btn'><i class="material-icons">file_download</i> Download</a>
+                    </div>`;
+                }
+                fileListDiv.appendChild(itemDiv);
+            });
+        }
+
+        function openFolder(folderName) {
+            currentFolder = folderName;
+            renderFileList();
+        }
+
+        function toggleUploadSection() {
+            document.getElementById("uploadSection").classList.toggle("hidden");
+        }
+
+        function toggleViewMode() {
+            isGridView = !isGridView;
+            renderFileList();
+        }
+    </script>
+</body>
+</html>
